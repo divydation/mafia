@@ -85,6 +85,7 @@
         .btn-danger { background-color: var(--mafia-color); }
         .btn-secondary { background-color: #6c757d; }
         .btn-reset { background-color: #333; margin-top: 30px; }
+        .btn-small { padding: 6px 10px; font-size: 14px; width: auto; }
 
         .big-action-btn {
             position: fixed;
@@ -149,6 +150,14 @@
         }
         .summary-box p { margin: 0 0 5px 0; }
 
+        .custom-role-box {
+            background: #fff;
+            border: 1px dashed var(--primary);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
         .win-check {
             color: var(--mafia-color);
             font-weight: bold;
@@ -209,6 +218,8 @@
             border-radius: 8px;
             width: 90%;
             max-width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .modal-actions { display: flex; gap: 10px; margin-top: 15px;}
         .move-actions { display: flex; gap: 10px; margin-bottom: 15px;}
@@ -220,11 +231,20 @@
 
     <div id="setup-view" class="view">
         <h2>Setup Game</h2>
-        <div class="summary-box">
-            Enter names in seating order (circular).
+        
+        <div class="custom-role-box">
+            <strong>+ Create Custom Role</strong>
+            <input type="text" id="custom-role-name" placeholder="Role Name (e.g. Arsonist)">
+            <input type="text" id="custom-role-action" placeholder="Night Action Prompt (e.g. douse)">
+            <select id="custom-role-team">
+                <option value="Town">Town Association</option>
+                <option value="Mafia">Mafia Association</option>
+            </select>
+            <button class="btn-small" onclick="createCustomRole()">Add to Role Pool</button>
         </div>
+
         <input type="text" id="setup-name" placeholder="Player Name" autocomplete="off">
-        <select id="setup-role">
+        <select id="setup-role" class="role-dropdown">
             <option value="Townsperson">Townsperson</option>
             <option value="Mafia">Mafia</option>
             <option value="Doctor">Doctor</option>
@@ -295,19 +315,17 @@
     <div class="modal-content">
         <h3>Edit Player</h3>
         <input type="hidden" id="edit-id">
+        
+        <label style="font-size: 14px;">Name:</label>
         <input type="text" id="edit-name">
-        <select id="edit-role">
-            <option value="Townsperson">Townsperson</option>
-            <option value="Mafia">Mafia</option>
-            <option value="Doctor">Doctor</option>
-            <option value="Detective">Detective</option>
-            <option value="Retaliator">Retaliator</option>
-            <option value="Romeo">Romeo</option>
-            <option value="Batman - Inactive">Batman - Inactive</option>
-            <option value="Batman - Active">Batman - Active</option>
-            <option value="Joker - Inactive">Joker - Inactive</option>
-            <option value="Joker - Active">Joker - Active</option>
-            <option value="Medium">Medium</option>
+        
+        <label style="font-size: 14px;">Role:</label>
+        <select id="edit-role" class="role-dropdown"></select>
+
+        <label style="font-size: 14px;">Team Association:</label>
+        <select id="edit-team">
+            <option value="Town">Town Team</option>
+            <option value="Mafia">Mafia Team</option>
         </select>
 
         <div class="checkbox-group">
@@ -315,6 +333,7 @@
             <label><input type="checkbox" id="edit-juliet"> Juliet</label>
         </div>
 
+        <label style="font-size: 14px;">Status:</label>
         <select id="edit-status">
             <option value="alive">Alive</option>
             <option value="dead">Dead</option>
@@ -336,6 +355,7 @@
 <script>
     /* --- STATE MANAGEMENT --- */
     let players = [];
+    let customRoles = [];
     let state = {
         phase: 'setup',
         nightCount: 0,
@@ -346,8 +366,14 @@
         tempSelections: {} 
     };
 
+    const defaultRoles = [
+        "Townsperson", "Mafia", "Doctor", "Detective", "Retaliator", 
+        "Romeo", "Batman - Inactive", "Batman - Active", 
+        "Joker - Inactive", "Joker - Active", "Medium"
+    ];
+
     function saveState() {
-        localStorage.setItem('mafiaState', JSON.stringify({ players, state }));
+        localStorage.setItem('mafiaState', JSON.stringify({ players, state, customRoles }));
     }
 
     function loadState() {
@@ -356,17 +382,58 @@
             const parsed = JSON.parse(data);
             players = parsed.players;
             state = parsed.state;
+            customRoles = parsed.customRoles || [];
+            updateRoleDropdowns();
             return true;
         }
         return false;
     }
 
     function init() {
-        if (loadState()) {
-            renderPhase();
-        } else {
+        if (!loadState()) {
+            updateRoleDropdowns();
             showView('setup-view');
+        } else {
+            renderPhase();
         }
+    }
+
+    /* --- ROLE CUSTOMIZATION --- */
+    function createCustomRole() {
+        const name = document.getElementById('custom-role-name').value.trim();
+        const action = document.getElementById('custom-role-action').value.trim();
+        const team = document.getElementById('custom-role-team').value;
+
+        if (!name) return;
+
+        customRoles.push({ name, action, team });
+        document.getElementById('custom-role-name').value = '';
+        document.getElementById('custom-role-action').value = '';
+        
+        updateRoleDropdowns();
+        saveState();
+    }
+
+    function updateRoleDropdowns() {
+        const dropdowns = document.querySelectorAll('.role-dropdown');
+        dropdowns.forEach(select => {
+            const currentVal = select.value;
+            select.innerHTML = '';
+            
+            defaultRoles.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r; opt.innerText = r;
+                select.appendChild(opt);
+            });
+
+            customRoles.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.name; opt.innerText = r.name;
+                select.appendChild(opt);
+            });
+            
+            if (currentVal) select.value = currentVal;
+        });
     }
 
     function showView(viewId) {
@@ -386,24 +453,30 @@
         const julietCheck = document.getElementById('setup-juliet');
         
         const name = nameInput.value.trim();
-        const role = roleInput.value;
-
         if (!name) return;
+
+        // Determine default team based on role
+        let defaultTeam = "Town";
+        if (roleInput.value === 'Mafia' || roleInput.value === 'Joker - Active') {
+            defaultTeam = "Mafia";
+        } else {
+            const cr = customRoles.find(c => c.name === roleInput.value);
+            if (cr) defaultTeam = cr.team;
+        }
 
         players.push({
             id: generateId(),
             name: name,
-            role: role,
+            role: roleInput.value,
+            team: defaultTeam,
             isBomb: bombCheck.checked,
             isJuliet: julietCheck.checked,
             isDead: false
         });
 
         nameInput.value = '';
-        roleInput.value = 'Townsperson';
         bombCheck.checked = false;
         julietCheck.checked = false;
-        
         renderSetupList();
         saveState();
     }
@@ -416,7 +489,7 @@
             li.className = 'player-item';
             
             let extras = (p.isBomb ? ' 💣' : '') + (p.isJuliet ? ' (Juliet)' : '');
-            let roleHtml = p.role !== 'Townsperson' ? `<span class="role-text ${p.role.includes('Mafia') || p.role === 'Joker - Active' ? 'role-Mafia' : ''}">(${p.role})</span>` : '';
+            let roleHtml = p.role !== 'Townsperson' ? `<span class="role-text ${p.team === 'Mafia' ? 'role-Mafia' : ''}">(${p.role})</span>` : '';
             
             li.innerHTML = `<div class="player-info">${p.name}${extras} ${roleHtml}</div>
                             <div class="action-group"><button class="btn-danger" onclick="removePlayer('${p.id}')">X</button></div>`;
@@ -431,10 +504,7 @@
     }
 
     function startGame() {
-        if (players.length < 3) {
-            alert("Need at least 3 players.");
-            return;
-        }
+        if (players.length < 3) return alert("Need 3+ players.");
         state.phase = 'day';
         saveState();
         renderPhase();
@@ -457,16 +527,14 @@
     function renderDay() {
         const aliveList = document.getElementById('alive-list');
         const deadList = document.getElementById('dead-list');
-        aliveList.innerHTML = '';
-        deadList.innerHTML = '';
+        aliveList.innerHTML = ''; deadList.innerHTML = '';
 
         players.forEach(p => {
             const li = document.createElement('li');
             li.className = `player-item ${p.isDead ? 'dead-item' : ''}`;
             
             let extras = (p.isBomb ? ' 💣' : '') + (p.isJuliet ? ' (Juliet)' : '');
-            let roleClass = (p.role === 'Mafia' || p.role === 'Joker - Active') ? 'role-Mafia' : '';
-            let roleHtml = p.role !== 'Townsperson' ? `<span class="role-text ${roleClass}">(${p.role})</span>` : '';
+            let roleHtml = p.role !== 'Townsperson' ? `<span class="role-text ${p.team === 'Mafia' ? 'role-Mafia' : ''}">(${p.role})</span>` : '';
             
             li.innerHTML = `
                 <div class="player-info">${p.name}${extras} ${roleHtml}</div>
@@ -475,284 +543,170 @@
                     <button class="btn-secondary" onclick="openEditModal('${p.id}')">Edit</button>
                 </div>
             `;
-
-            if (p.isDead) deadList.appendChild(li);
-            else aliveList.appendChild(li);
+            if (p.isDead) deadList.appendChild(li); else aliveList.appendChild(li);
         });
 
         const summaryBox = document.getElementById('last-night-summary');
-        const summaryContent = document.getElementById('summary-content');
         if (state.nightHistory.length > 0) {
             summaryBox.style.display = 'block';
-            summaryContent.innerHTML = state.nightHistory.map(line => `<p>${line}</p>`).join('');
-        } else {
-            summaryBox.style.display = 'none';
-        }
+            document.getElementById('summary-content').innerHTML = state.nightHistory.map(line => `<p>${line}</p>`).join('');
+        } else summaryBox.style.display = 'none';
 
         checkWinConditions();
     }
 
     function killPlayer(id) {
         const p = players.find(p => p.id === id);
-        if (p) {
-            p.isDead = true;
-            saveState();
-            renderDay();
-        }
+        if (p) { p.isDead = true; saveState(); renderDay(); }
     }
 
     function checkWinConditions() {
         const alive = players.filter(p => !p.isDead);
         const winBox = document.getElementById('win-check');
         winBox.style.display = 'none';
-
         if (alive.length === 0) return;
 
-        let mafiaCount = alive.filter(p => p.role === 'Mafia' || p.role === 'Joker - Active').length;
+        let mafiaCount = alive.filter(p => p.team === 'Mafia').length;
         let rjCount = alive.filter(p => p.role === 'Romeo' || p.isJuliet).length;
 
-        if (mafiaCount >= alive.length / 2) {
-            winBox.innerHTML = "Mafia win detected - check";
-            winBox.style.display = 'block';
-        } else if (alive.length <= 2 && rjCount === alive.length && alive.length > 0) {
-            winBox.innerHTML = "Romeo & Juliet win detected - check";
-            winBox.style.display = 'block';
-        } else if (mafiaCount === 0 && (!players.find(p => p.role==='Joker - Inactive' && !p.isDead))) {
-            winBox.innerHTML = "Town win detected - check";
-            winBox.style.display = 'block';
-        }
+        if (mafiaCount >= alive.length / 2) { winBox.innerHTML = "Mafia win detected - check"; winBox.style.display = 'block'; }
+        else if (alive.length <= 2 && rjCount === alive.length) { winBox.innerHTML = "Romeo & Juliet win detected - check"; winBox.style.display = 'block'; }
+        else if (mafiaCount === 0) { winBox.innerHTML = "Town win detected - check"; winBox.style.display = 'block'; }
     }
 
     /* --- NIGHT SEQUENCE --- */
-    function getAliveRole(role) {
-        return players.find(p => p.role === role && !p.isDead);
-    }
+    function getAliveRole(role) { return players.find(p => p.role === role && !p.isDead); }
 
     function startNight() {
         state.phase = 'night';
         state.nightCount++;
         state.tempSelections = {};
-        
         let steps = [];
         
-        if (state.nightCount === 1 && getAliveRole('Romeo')) {
-            steps.push({ role: 'Romeo', prompt: 'Romeo: Who do you choose to be Juliet?', targetType: 'alive' });
-        }
+        if (state.nightCount === 1 && getAliveRole('Romeo')) steps.push({ role: 'Romeo', prompt: 'Romeo: Who do you choose to be Juliet?', targetType: 'alive' });
+        if (getAliveRole('Mafia') || getAliveRole('Joker - Active')) steps.push({ role: 'Mafia', prompt: 'Mafia: Who do you choose to kill?', targetType: 'alive' });
+        if (getAliveRole('Doctor')) steps.push({ role: 'Doctor', prompt: 'Doctor: Who do you choose to save?', targetType: 'alive' });
+        if (getAliveRole('Detective')) steps.push({ role: 'Detective', prompt: 'Detective: Who do you choose to detect?', targetType: 'alive' });
         
-        if (getAliveRole('Mafia') || getAliveRole('Joker - Active')) {
-            steps.push({ role: 'Mafia', prompt: 'Mafia: Who do you choose to kill?', targetType: 'alive' });
-        }
+        customRoles.forEach(cr => {
+            if (getAliveRole(cr.name) && cr.action) {
+                steps.push({ role: cr.name, prompt: `${cr.name}: Who do you choose to ${cr.action}?`, targetType: 'alive' });
+            }
+        });
 
-        if (getAliveRole('Doctor')) {
-            steps.push({ role: 'Doctor', prompt: 'Doctor: Who do you choose to save?', targetType: 'alive' });
-        }
+        if (getAliveRole('Joker - Active')) steps.push({ role: 'Joker', prompt: 'Joker: Who do you choose to be the temporary Bomb?', targetType: 'alive' });
+        if (getAliveRole('Batman - Active')) steps.push({ role: 'Batman', prompt: 'Batman: Choose an action and a target.', targetType: 'alive', needsAction: true });
+        if (getAliveRole('Medium')) steps.push({ role: 'Medium', prompt: 'Medium: Who do you choose to speak to?', targetType: 'dead' });
 
-        if (getAliveRole('Detective')) {
-            steps.push({ role: 'Detective', prompt: 'Detective: Who do you choose to detect?', targetType: 'alive' });
-        }
-
-        if (getAliveRole('Joker - Active')) {
-            steps.push({ role: 'Joker', prompt: 'Joker: Who do you choose to be the temporary Bomb?', targetType: 'alive' });
-        }
-
-        if (getAliveRole('Batman - Active')) {
-            steps.push({ role: 'Batman', prompt: 'Batman: Choose an action and a target.', targetType: 'alive', needsAction: true });
-        }
-
-        if (getAliveRole('Medium')) {
-            steps.push({ role: 'Medium', prompt: 'Medium: Who do you choose to speak to?', targetType: 'dead' });
-        }
-
-        state.nightSteps = steps;
-        state.currentStepIndex = 0;
-
-        if (steps.length === 0) {
-            finishNight();
-            return;
-        }
-
-        saveState();
-        renderPhase();
+        state.nightSteps = steps; state.currentStepIndex = 0;
+        if (steps.length === 0) return finishNight();
+        saveState(); renderPhase();
     }
 
     function renderNightStep() {
         const step = state.nightSteps[state.currentStepIndex];
         document.getElementById('night-prompt-text').innerText = step.prompt;
-        
-        const batmanContainer = document.getElementById('batman-action-container');
-        batmanContainer.style.display = step.needsAction ? 'block' : 'none';
+        document.getElementById('batman-action-container').style.display = step.needsAction ? 'block' : 'none';
 
         const targetGrid = document.getElementById('night-targets');
         targetGrid.innerHTML = '';
 
         let validTargets = players.filter(p => step.targetType === 'dead' ? p.isDead : !p.isDead);
-
         validTargets.forEach(p => {
             const btn = document.createElement('button');
             btn.className = 'target-btn';
-            
-            let extras = (p.isBomb ? ' 💣' : '') + (p.isJuliet ? ' (Juliet)' : '');
-            btn.innerText = p.name + extras;
-            
-            if (step.role === 'Doctor' && p.id === state.doctorLastSaved) {
-                btn.disabled = true;
-                btn.innerText += " (Saved Last Night)";
-            }
-
-            if (state.tempSelections[state.currentStepIndex]?.targetId === p.id) {
-                btn.classList.add('selected');
-            }
-
+            btn.innerText = p.name + (p.isBomb ? ' 💣' : '') + (p.isJuliet ? ' (Juliet)' : '');
+            if (step.role === 'Doctor' && p.id === state.doctorLastSaved) { btn.disabled = true; btn.innerText += " (Saved Last Night)"; }
+            if (state.tempSelections[state.currentStepIndex]?.targetId === p.id) btn.classList.add('selected');
             btn.onclick = () => selectNightTarget(p.id, step.needsAction);
             targetGrid.appendChild(btn);
         });
 
         const skipBtn = document.createElement('button');
-        skipBtn.className = 'target-btn';
-        skipBtn.innerText = "None / Skip";
+        skipBtn.className = 'target-btn'; skipBtn.innerText = "None / Skip";
         if (state.tempSelections[state.currentStepIndex]?.targetId === 'none') skipBtn.classList.add('selected');
         skipBtn.onclick = () => selectNightTarget('none', step.needsAction);
         targetGrid.appendChild(skipBtn);
-
         document.getElementById('night-back-btn').disabled = state.currentStepIndex === 0;
     }
 
     function selectNightTarget(targetId, needsAction) {
         document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('selected'));
         event.target.classList.add('selected');
-
-        let actionStr = null;
-        if (needsAction) {
-            actionStr = document.getElementById('batman-action').value;
-        }
-
-        state.tempSelections[state.currentStepIndex] = { targetId, actionStr };
+        state.tempSelections[state.currentStepIndex] = { targetId, actionStr: needsAction ? document.getElementById('batman-action').value : null };
     }
 
     function nextNightStep() {
-        if (!state.tempSelections[state.currentStepIndex]) {
-            alert("Please make a selection or choose 'None / Skip'.");
-            return;
-        }
-
-        if (state.currentStepIndex < state.nightSteps.length - 1) {
-            state.currentStepIndex++;
-            saveState();
-            renderNightStep();
-        } else {
-            finishNight();
-        }
+        if (!state.tempSelections[state.currentStepIndex]) return alert("Make a selection.");
+        if (state.currentStepIndex < state.nightSteps.length - 1) { state.currentStepIndex++; saveState(); renderNightStep(); }
+        else finishNight();
     }
 
-    function prevNightStep() {
-        if (state.currentStepIndex > 0) {
-            state.currentStepIndex--;
-            saveState();
-            renderNightStep();
-        }
-    }
+    function prevNightStep() { if (state.currentStepIndex > 0) { state.currentStepIndex--; saveState(); renderNightStep(); } }
 
     function finishNight() {
-        state.nightHistory = [];
-        let newDoctorSaved = null;
-
+        state.nightHistory = []; let newDoctorSaved = null;
         state.nightSteps.forEach((step, index) => {
             const sel = state.tempSelections[index];
-            if (!sel || sel.targetId === 'none') {
-                state.nightHistory.push(`${step.role} chose no one.`);
-                return;
-            }
+            if (!sel || sel.targetId === 'none') return state.nightHistory.push(`${step.role} chose no one.`);
+            const target = players.find(p => p.id === sel.targetId);
+            const targetName = target?.name || 'Unknown';
 
-            const targetName = players.find(p => p.id === sel.targetId)?.name || 'Unknown';
-
-            if (step.role === 'Romeo') {
-                state.nightHistory.push(`Romeo chose ${targetName} to be Juliet. (Remember to edit their role!)`);
-            } else if (step.role === 'Mafia') {
-                state.nightHistory.push(`Mafia chose to kill ${targetName}.`);
-            } else if (step.role === 'Doctor') {
-                state.nightHistory.push(`Doctor chose to save ${targetName}.`);
-                newDoctorSaved = sel.targetId;
-            } else if (step.role === 'Detective') {
-                const p = players.find(p=>p.id === sel.targetId);
-                let team = (p.role === 'Mafia' || p.role === 'Joker - Active') ? 'Mafia Team' : 'Townsperson Team';
-                state.nightHistory.push(`Detective found out ${targetName} is ${team}.`);
-            } else if (step.role === 'Joker') {
-                state.nightHistory.push(`Joker temporarily made ${targetName} the Bomb.`);
-            } else if (step.role === 'Batman') {
-                state.nightHistory.push(`Batman chose to ${sel.actionStr} ${targetName}.`);
-            } else if (step.role === 'Medium') {
-                state.nightHistory.push(`Medium spoke to ${targetName}.`);
+            if (step.role === 'Romeo') state.nightHistory.push(`Romeo chose ${targetName} to be Juliet.`);
+            else if (step.role === 'Mafia') state.nightHistory.push(`Mafia chose to kill ${targetName}.`);
+            else if (step.role === 'Doctor') { state.nightHistory.push(`Doctor saved ${targetName}.`); newDoctorSaved = sel.targetId; }
+            else if (step.role === 'Detective') {
+                state.nightHistory.push(`Detective found ${targetName} is ${target.team === 'Mafia' ? 'Mafia Team' : 'Town Team'}.`);
+            } else if (step.role === 'Batman') state.nightHistory.push(`Batman chose to ${sel.actionStr} ${targetName}.`);
+            else {
+                const cr = customRoles.find(c => c.name === step.role);
+                state.nightHistory.push(`${step.role} chose to ${cr ? cr.action : 'act on'} ${targetName}.`);
             }
         });
-
-        state.doctorLastSaved = newDoctorSaved;
-        state.phase = 'day';
-        saveState();
-        renderPhase();
+        state.doctorLastSaved = newDoctorSaved; state.phase = 'day'; saveState(); renderPhase();
     }
 
     /* --- EDITING --- */
     function openEditModal(id) {
         const p = players.find(p => p.id === id);
         if (!p) return;
-
+        updateRoleDropdowns();
         document.getElementById('edit-id').value = p.id;
         document.getElementById('edit-name').value = p.name;
         document.getElementById('edit-role').value = p.role;
+        document.getElementById('edit-team').value = p.team || "Town";
         document.getElementById('edit-bomb').checked = !!p.isBomb;
         document.getElementById('edit-juliet').checked = !!p.isJuliet;
         document.getElementById('edit-status').value = p.isDead ? 'dead' : 'alive';
-        
         document.getElementById('edit-modal').classList.add('active');
     }
 
-    function closeEditModal() {
-        document.getElementById('edit-modal').classList.remove('active');
-    }
+    function closeEditModal() { document.getElementById('edit-modal').classList.remove('active'); }
 
     function saveEdit() {
         const id = document.getElementById('edit-id').value;
         const p = players.find(p => p.id === id);
         if (!p) return;
-
         p.name = document.getElementById('edit-name').value;
         p.role = document.getElementById('edit-role').value;
+        p.team = document.getElementById('edit-team').value;
         p.isBomb = document.getElementById('edit-bomb').checked;
         p.isJuliet = document.getElementById('edit-juliet').checked;
         p.isDead = document.getElementById('edit-status').value === 'dead';
-
-        closeEditModal();
-        saveState();
-        if (state.phase === 'setup') renderSetupList();
-        else renderDay();
+        closeEditModal(); saveState(); renderPhase();
     }
 
     function movePlayer(direction) {
         const id = document.getElementById('edit-id').value;
         const index = players.findIndex(p => p.id === id);
-        if (index === -1) return;
-
         let newIndex = (index + direction + players.length) % players.length;
-        
-        let temp = players[index];
-        players[index] = players[newIndex];
-        players[newIndex] = temp;
-
-        saveState();
-        if (state.phase === 'setup') renderSetupList();
-        else renderDay();
+        [players[index], players[newIndex]] = [players[newIndex], players[index]];
+        saveState(); renderPhase();
     }
 
-    /* --- RESET --- */
-    function resetGame() {
-        if (confirm("Are you sure you want to reset the entire game?")) {
-            localStorage.clear();
-            window.location.reload();
-        }
-    }
+    function resetGame() { if (confirm("Reset everything?")) { localStorage.clear(); window.location.reload(); } }
 
     init();
-
 </script>
 </body>
 </html>
