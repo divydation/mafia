@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <title>Mafia Narrator Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #f7f9fc;
+            --text-color: #1a1a2e;
+            --mafia-color: #e63946;
+            --primary: #457b9d;
+            --primary-dark: #1d3557;
+            --border: #ccc;
+            --dead-text: #888;
+            --white: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 15px;
+            padding-bottom: 100px;
+        }
+
+        .view { display: none; }
+        .view.active { display: block; }
+
+        h1, h2, h3 { margin-top: 0; }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 16px;
+            color: var(--text-color);
+            background: var(--white);
+        }
+        
+        .checkbox-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            font-size: 16px;
+            align-items: center;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 5px;
+            transform: scale(1.2);
+        }
+
+        button {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            background-color: var(--primary);
+            color: var(--white);
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        button:active { background-color: var(--primary-dark); }
+        button:disabled { background-color: #aaa; cursor: not-allowed; opacity: 0.6; }
+
+        .btn-danger { background-color: var(--mafia-color); }
+        .btn-secondary { background-color: #6c757d; }
+        .btn-reset { background-color: #333; margin-top: 30px; }
+
+        .big-action-btn {
+            position: fixed;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 500px;
+            padding: 16px;
+            font-size: 18px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .player-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--white);
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            border: 1px solid #e1e4e8;
+        }
+
+        .player-info {
+            flex-grow: 1;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .role-text { font-weight: normal; font-size: 14px; }
+        .role-Mafia { color: var(--mafia-color); font-weight: bold; }
+        
+        .dead-item {
+            background-color: #e9ecef;
+            opacity: 0.7;
+        }
+        .dead-item .player-info { color: var(--dead-text); text-decoration: line-through; }
+
+        .action-group button {
+            width: auto;
+            padding: 6px 12px;
+            font-size: 14px;
+            margin-bottom: 0;
+            margin-left: 5px;
+        }
+
+        .summary-box {
+            background: #eef2f5;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            margin-bottom: 15px;
+            font-size: 15px;
+        }
+        .summary-box p { margin: 0 0 5px 0; }
+
+        .win-check {
+            color: var(--mafia-color);
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+            background: #ffe5e5;
+            padding: 8px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .night-prompt {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: var(--primary-dark);
+            text-align: center;
+        }
+
+        .target-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .target-btn {
+            background-color: var(--white);
+            color: var(--text-color);
+            border: 2px solid var(--primary);
+            text-align: left;
+            padding: 12px;
+        }
+        .target-btn.selected {
+            background-color: var(--primary);
+            color: var(--white);
+        }
+
+        .night-nav {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background: var(--white);
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+        }
+        .modal-actions { display: flex; gap: 10px; margin-top: 15px;}
+        .move-actions { display: flex; gap: 10px; margin-bottom: 15px;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <div id="setup-view" class="view">
+        <h2>Setup Game</h2>
+        <div class="summary-box">
+            Enter names in seating order (circular).
+        </div>
+        <input type="text" id="setup-name" placeholder="Player Name" autocomplete="off">
+        <select id="setup-role">
+            <option value="Townsperson">Townsperson</option>
+            <option value="Mafia">Mafia</option>
+            <option value="Doctor">Doctor</option>
+            <option value="Detective">Detective</option>
+            <option value="Retaliator">Retaliator</option>
+            <option value="Romeo">Romeo</option>
+            <option value="Batman - Inactive">Batman - Inactive</option>
+            <option value="Batman - Active">Batman - Active</option>
+            <option value="Joker - Inactive">Joker - Inactive</option>
+            <option value="Joker - Active">Joker - Active</option>
+            <option value="Medium">Medium</option>
+        </select>
+        
+        <div class="checkbox-group">
+            <label><input type="checkbox" id="setup-bomb"> Bomb 💣</label>
+            <label><input type="checkbox" id="setup-juliet"> Juliet</label>
+        </div>
+
+        <button onclick="addPlayer()">Add Player</button>
+
+        <h3 style="margin-top: 20px;">Players</h3>
+        <ul id="setup-list" class="player-list"></ul>
+        
+        <button onclick="startGame()" style="margin-top: 20px;" class="btn-danger">Start Game</button>
+    </div>
+
+    <div id="day-view" class="view">
+        <div id="win-check" class="win-check"></div>
+        
+        <div class="summary-box" id="last-night-summary" style="display:none;">
+            <strong>Last Night Summary:</strong>
+            <div id="summary-content"></div>
+        </div>
+
+        <h3>Alive</h3>
+        <ul id="alive-list" class="player-list"></ul>
+
+        <h3 style="margin-top: 20px; color: var(--dead-text)">Dead</h3>
+        <ul id="dead-list" class="player-list"></ul>
+
+        <button class="big-action-btn" onclick="startNight()">START NIGHT</button>
+        <button class="btn-reset" onclick="resetGame()">Reset Game</button>
+    </div>
+
+    <div id="night-view" class="view">
+        <div class="night-prompt" id="night-prompt-text"></div>
+        
+        <div id="batman-action-container" style="display: none;">
+            <label><strong>Batman Action:</strong></label>
+            <select id="batman-action">
+                <option value="Save">Save</option>
+                <option value="Detect">Detect</option>
+                <option value="Kill">Kill</option>
+            </select>
+        </div>
+
+        <div class="target-grid" id="night-targets"></div>
+
+        <div class="night-nav">
+            <button id="night-back-btn" class="btn-secondary" onclick="prevNightStep()">Back</button>
+            <button id="night-next-btn" onclick="nextNightStep()">Next</button>
+        </div>
+    </div>
+
+</div>
+
+<div class="modal-overlay" id="edit-modal">
+    <div class="modal-content">
+        <h3>Edit Player</h3>
+        <input type="hidden" id="edit-id">
+        <input type="text" id="edit-name">
+        <select id="edit-role">
+            <option value="Townsperson">Townsperson</option>
+            <option value="Mafia">Mafia</option>
+            <option value="Doctor">Doctor</option>
+            <option value="Detective">Detective</option>
+            <option value="Retaliator">Retaliator</option>
+            <option value="Romeo">Romeo</option>
+            <option value="Batman - Inactive">Batman - Inactive</option>
+            <option value="Batman - Active">Batman - Active</option>
+            <option value="Joker - Inactive">Joker - Inactive</option>
+            <option value="Joker - Active">Joker - Active</option>
+            <option value="Medium">Medium</option>
+        </select>
+
+        <div class="checkbox-group">
+            <label><input type="checkbox" id="edit-bomb"> Bomb 💣</label>
+            <label><input type="checkbox" id="edit-juliet"> Juliet</label>
+        </div>
+
+        <select id="edit-status">
+            <option value="alive">Alive</option>
+            <option value="dead">Dead</option>
+        </select>
+        
+        <label style="font-size: 14px; margin-bottom: 5px; display: block;">Seating Order:</label>
+        <div class="move-actions">
+            <button class="btn-secondary" onclick="movePlayer(-1)">Move Up</button>
+            <button class="btn-secondary" onclick="movePlayer(1)">Move Down</button>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+            <button class="btn-danger" onclick="saveEdit()">Save</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* --- STATE MANAGEMENT --- */
+    let players = [];
+    let state = {
+        phase: 'setup',
+        nightCount: 0,
+        doctorLastSaved: null,
+        nightHistory: [],
+        nightSteps: [],
+        currentStepIndex: 0,
+        tempSelections: {} 
+    };
+
+    function saveState() {
+        localStorage.setItem('mafiaState', JSON.stringify({ players, state }));
+    }
+
+    function loadState() {
+        const data = localStorage.getItem('mafiaState');
+        if (data) {
+            const parsed = JSON.parse(data);
+            players = parsed.players;
+            state = parsed.state;
+            return true;
+        }
+        return false;
+    }
+
+    function init() {
+        if (loadState()) {
+            renderPhase();
+        } else {
+            showView('setup-view');
+        }
+    }
+
+    function showView(viewId) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+    }
+
+    function generateId() {
+        return Math.random().toString(36).substr(2, 9);
+    }
+
+    /* --- SETUP PHASE --- */
+    function addPlayer() {
+        const nameInput = document.getElementById('setup-name');
+        const roleInput = document.getElementById('setup-role');
+        const bombCheck = document.getElementById('setup-bomb');
+        const julietCheck = document.getElementById('setup-juliet');
+        
+        const name = nameInput.value.trim();
+        const role = roleInput.value;
+
+        if (!name) return;
+
+        players.push({
+            id: generateId(),
+            name: name,
+            role: role,
+            isBomb: bombCheck.checked,
+            isJuliet: julietCheck.checked,
+            isDead: false
+        });
+
+        nameInput.value = '';
+        roleInput.value = 'Townsperson';
+        bombCheck.checked = false;
+        julietCheck.checked = false;
+        
+        renderSetupList();
+        saveState();
+    }
+
+    function renderSetupList() {
+        const list = document.getElementById('setup-list');
+        list.innerHTML = '';
+        players.forEach(p => {
+            const li = document.createElement('li');
+            li.className = 'player-item';
+            
+            let extras = (p.isBomb ? ' 💣' : '') + (p.isJuliet ? ' (Juliet)' : '');
+            let roleHtml = p.role !== 'Townsperson' ? `<span class="role-text ${p.role.includes('Mafia') || p.role === 'Joker - Active' ? 'role-Mafia' : ''}">(${p.role})</span>` : '';
+            
+            li.innerHTML = `<div class="player-info">${p.name}${extras} ${roleHtml}</div>
+                            <div class="action-group"><button class="btn-danger" onclick="removePlayer('${p.id}')">X</button></div>`;
+            list.appendChild(li);
+        });
+    }
+
+    function removePlayer(id) {
+        players = players.filter(p => p.id !== id);
+        renderSetupList();
+        saveState();
+    }
+
+    function startGame() {
+        if (players.length < 3) {
+            alert("Need at least 3 players.");
+            return;
+        }
+        state.phase = 'day';
+        saveState();
+        renderPhase();
+    }
+
+    /* --- DAY PHASE --- */
+    function renderPhase() {
+        if (state.phase === 'setup') {
+            showView('setup-view');
+            renderSetupList();
+        } else if (state.phase === 'day') {
+            showView('day-view');
+            renderDay();
+        } else if (state.phase === 'night') {
+            showView('night-view');
+            renderNightStep();
+        }
+    }
+
+    function renderDay() {
+        const aliveList = document.getElementById('alive-list');
+        const deadList = document.getElementById('dead-list');
+        aliveList.innerHTML = '';
+        deadList.innerHTML = '';
+
+        players.forEach(p => {
+            const li = document.createElement('li');
+            li.className = `player-item ${p.isDead ? 'dead-item' : ''}`;
+            
+            let extras = (p.isBomb ? ' 💣' : '') + (p.isJuliet ? ' (Juliet)' : '');
+            let roleClass = (p.role === 'Mafia' || p.role === 'Joker - Active') ? 'role-Mafia' : '';
+            let roleHtml = p.role !== 'Townsperson' ? `<span class="role-text ${roleClass}">(${p.role})</span>` : '';
+            
+            li.innerHTML = `
+                <div class="player-info">${p.name}${extras} ${roleHtml}</div>
+                <div class="action-group">
+                    ${!p.isDead ? `<button class="btn-danger" onclick="killPlayer('${p.id}')">Kill</button>` : ''}
+                    <button class="btn-secondary" onclick="openEditModal('${p.id}')">Edit</button>
+                </div>
+            `;
+
+            if (p.isDead) deadList.appendChild(li);
+            else aliveList.appendChild(li);
+        });
+
+        const summaryBox = document.getElementById('last-night-summary');
+        const summaryContent = document.getElementById('summary-content');
+        if (state.nightHistory.length > 0) {
+            summaryBox.style.display = 'block';
+            summaryContent.innerHTML = state.nightHistory.map(line => `<p>${line}</p>`).join('');
+        } else {
+            summaryBox.style.display = 'none';
+        }
+
+        checkWinConditions();
+    }
+
+    function killPlayer(id) {
+        const p = players.find(p => p.id === id);
+        if (p) {
+            p.isDead = true;
+            saveState();
+            renderDay();
+        }
+    }
+
+    function checkWinConditions() {
+        const alive = players.filter(p => !p.isDead);
+        const winBox = document.getElementById('win-check');
+        winBox.style.display = 'none';
+
+        if (alive.length === 0) return;
+
+        let mafiaCount = alive.filter(p => p.role === 'Mafia' || p.role === 'Joker - Active').length;
+        let rjCount = alive.filter(p => p.role === 'Romeo' || p.isJuliet).length;
+
+        if (mafiaCount >= alive.length / 2) {
+            winBox.innerHTML = "Mafia win detected - check";
+            winBox.style.display = 'block';
+        } else if (alive.length <= 2 && rjCount === alive.length && alive.length > 0) {
+            winBox.innerHTML = "Romeo & Juliet win detected - check";
+            winBox.style.display = 'block';
+        } else if (mafiaCount === 0 && (!players.find(p => p.role==='Joker - Inactive' && !p.isDead))) {
+            winBox.innerHTML = "Town win detected - check";
+            winBox.style.display = 'block';
+        }
+    }
+
+    /* --- NIGHT SEQUENCE --- */
+    function getAliveRole(role) {
+        return players.find(p => p.role === role && !p.isDead);
+    }
+
+    function startNight() {
+        state.phase = 'night';
+        state.nightCount++;
+        state.tempSelections = {};
+        
+        let steps = [];
+        
+        if (state.nightCount === 1 && getAliveRole('Romeo')) {
+            steps.push({ role: 'Romeo', prompt: 'Romeo: Who do you choose to be Juliet?', targetType: 'alive' });
+        }
+        
+        if (getAliveRole('Mafia') || getAliveRole('Joker - Active')) {
+            steps.push({ role: 'Mafia', prompt: 'Mafia: Who do you choose to kill?', targetType: 'alive' });
+        }
+
+        if (getAliveRole('Doctor')) {
+            steps.push({ role: 'Doctor', prompt: 'Doctor: Who do you choose to save?', targetType: 'alive' });
+        }
+
+        if (getAliveRole('Detective')) {
+            steps.push({ role: 'Detective', prompt: 'Detective: Who do you choose to detect?', targetType: 'alive' });
+        }
+
+        if (getAliveRole('Joker - Active')) {
+            steps.push({ role: 'Joker', prompt: 'Joker: Who do you choose to be the temporary Bomb?', targetType: 'alive' });
+        }
+
+        if (getAliveRole('Batman - Active')) {
+            steps.push({ role: 'Batman', prompt: 'Batman: Choose an action and a target.', targetType: 'alive', needsAction: true });
+        }
+
+        if (getAliveRole('Medium')) {
+            steps.push({ role: 'Medium', prompt: 'Medium: Who do you choose to speak to?', targetType: 'dead' });
+        }
+
+        state.nightSteps = steps;
+        state.currentStepIndex = 0;
+
+        if (steps.length === 0) {
+            finishNight();
+            return;
+        }
+
+        saveState();
+        renderPhase();
+    }
+
+    function renderNightStep() {
+        const step = state.nightSteps[state.currentStepIndex];
+        document.getElementById('night-prompt-text').innerText = step.prompt;
+        
+        const batmanContainer = document.getElementById('batman-action-container');
+        batmanContainer.style.display = step.needsAction ? 'block' : 'none';
+
+        const targetGrid = document.getElementById('night-targets');
+        targetGrid.innerHTML = '';
+
+        let validTargets = players.filter(p => step.targetType === 'dead' ? p.isDead : !p.isDead);
+
+        validTargets.forEach(p => {
+            const btn = document.createElement('button');
+            btn.className = 'target-btn';
+            
+            let extras = (p.isBomb ? ' 💣' : '') + (p.isJuliet ? ' (Juliet)' : '');
+            btn.innerText = p.name + extras;
+            
+            if (step.role === 'Doctor' && p.id === state.doctorLastSaved) {
+                btn.disabled = true;
+                btn.innerText += " (Saved Last Night)";
+            }
+
+            if (state.tempSelections[state.currentStepIndex]?.targetId === p.id) {
+                btn.classList.add('selected');
+            }
+
+            btn.onclick = () => selectNightTarget(p.id, step.needsAction);
+            targetGrid.appendChild(btn);
+        });
+
+        const skipBtn = document.createElement('button');
+        skipBtn.className = 'target-btn';
+        skipBtn.innerText = "None / Skip";
+        if (state.tempSelections[state.currentStepIndex]?.targetId === 'none') skipBtn.classList.add('selected');
+        skipBtn.onclick = () => selectNightTarget('none', step.needsAction);
+        targetGrid.appendChild(skipBtn);
+
+        document.getElementById('night-back-btn').disabled = state.currentStepIndex === 0;
+    }
+
+    function selectNightTarget(targetId, needsAction) {
+        document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('selected'));
+        event.target.classList.add('selected');
+
+        let actionStr = null;
+        if (needsAction) {
+            actionStr = document.getElementById('batman-action').value;
+        }
+
+        state.tempSelections[state.currentStepIndex] = { targetId, actionStr };
+    }
+
+    function nextNightStep() {
+        if (!state.tempSelections[state.currentStepIndex]) {
+            alert("Please make a selection or choose 'None / Skip'.");
+            return;
+        }
+
+        if (state.currentStepIndex < state.nightSteps.length - 1) {
+            state.currentStepIndex++;
+            saveState();
+            renderNightStep();
+        } else {
+            finishNight();
+        }
+    }
+
+    function prevNightStep() {
+        if (state.currentStepIndex > 0) {
+            state.currentStepIndex--;
+            saveState();
+            renderNightStep();
+        }
+    }
+
+    function finishNight() {
+        state.nightHistory = [];
+        let newDoctorSaved = null;
+
+        state.nightSteps.forEach((step, index) => {
+            const sel = state.tempSelections[index];
+            if (!sel || sel.targetId === 'none') {
+                state.nightHistory.push(`${step.role} chose no one.`);
+                return;
+            }
+
+            const targetName = players.find(p => p.id === sel.targetId)?.name || 'Unknown';
+
+            if (step.role === 'Romeo') {
+                state.nightHistory.push(`Romeo chose ${targetName} to be Juliet. (Remember to edit their role!)`);
+            } else if (step.role === 'Mafia') {
+                state.nightHistory.push(`Mafia chose to kill ${targetName}.`);
+            } else if (step.role === 'Doctor') {
+                state.nightHistory.push(`Doctor chose to save ${targetName}.`);
+                newDoctorSaved = sel.targetId;
+            } else if (step.role === 'Detective') {
+                const p = players.find(p=>p.id === sel.targetId);
+                let team = (p.role === 'Mafia' || p.role === 'Joker - Active') ? 'Mafia Team' : 'Townsperson Team';
+                state.nightHistory.push(`Detective found out ${targetName} is ${team}.`);
+            } else if (step.role === 'Joker') {
+                state.nightHistory.push(`Joker temporarily made ${targetName} the Bomb.`);
+            } else if (step.role === 'Batman') {
+                state.nightHistory.push(`Batman chose to ${sel.actionStr} ${targetName}.`);
+            } else if (step.role === 'Medium') {
+                state.nightHistory.push(`Medium spoke to ${targetName}.`);
+            }
+        });
+
+        state.doctorLastSaved = newDoctorSaved;
+        state.phase = 'day';
+        saveState();
+        renderPhase();
+    }
+
+    /* --- EDITING --- */
+    function openEditModal(id) {
+        const p = players.find(p => p.id === id);
+        if (!p) return;
+
+        document.getElementById('edit-id').value = p.id;
+        document.getElementById('edit-name').value = p.name;
+        document.getElementById('edit-role').value = p.role;
+        document.getElementById('edit-bomb').checked = !!p.isBomb;
+        document.getElementById('edit-juliet').checked = !!p.isJuliet;
+        document.getElementById('edit-status').value = p.isDead ? 'dead' : 'alive';
+        
+        document.getElementById('edit-modal').classList.add('active');
+    }
+
+    function closeEditModal() {
+        document.getElementById('edit-modal').classList.remove('active');
+    }
+
+    function saveEdit() {
+        const id = document.getElementById('edit-id').value;
+        const p = players.find(p => p.id === id);
+        if (!p) return;
+
+        p.name = document.getElementById('edit-name').value;
+        p.role = document.getElementById('edit-role').value;
+        p.isBomb = document.getElementById('edit-bomb').checked;
+        p.isJuliet = document.getElementById('edit-juliet').checked;
+        p.isDead = document.getElementById('edit-status').value === 'dead';
+
+        closeEditModal();
+        saveState();
+        if (state.phase === 'setup') renderSetupList();
+        else renderDay();
+    }
+
+    function movePlayer(direction) {
+        const id = document.getElementById('edit-id').value;
+        const index = players.findIndex(p => p.id === id);
+        if (index === -1) return;
+
+        let newIndex = (index + direction + players.length) % players.length;
+        
+        let temp = players[index];
+        players[index] = players[newIndex];
+        players[newIndex] = temp;
+
+        saveState();
+        if (state.phase === 'setup') renderSetupList();
+        else renderDay();
+    }
+
+    /* --- RESET --- */
+    function resetGame() {
+        if (confirm("Are you sure you want to reset the entire game?")) {
+            localStorage.clear();
+            window.location.reload();
+        }
+    }
+
+    init();
+
+</script>
+</body>
+</html>
